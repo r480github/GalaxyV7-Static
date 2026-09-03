@@ -18,15 +18,15 @@
 		history.replaceState(null, "", new URL(".", location).pathname);
 	}
 
-	__sveltekit_rs2whj = {
+	__sveltekit_14hr4d1 = {
 		base: new URL(".", location).pathname.slice(0, -1)
 	};
 
 	const element = document.currentScript.parentElement;
 
 	Promise.all([
-		import("./_app/immutable/entry/start.Sn7ekn4v.js"),
-		import("./_app/immutable/entry/app.Ct3Ry348.js")
+		import("./_app/immutable/entry/start.C1N0tRkk.js"),
+		import("./_app/immutable/entry/app.DrJvPq3U.js")
 	])
 		.then(([kit, app]) => {
 			kit.start(app, element);
