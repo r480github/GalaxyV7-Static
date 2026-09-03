@@ -1,4 +1,7 @@
-importScripts("/cdn.js");
+// Resolved against this worker's own URL. An absolute "/cdn.js" would hit the
+// ORIGIN root, which is wrong on any host that serves the app from a
+// subdirectory -- on a CDN it becomes https://cdn.jsdelivr.net/cdn.js.
+importScripts(new URL("cdn.js", self.location.href).href);
 
 /*
  * Engine assets can come from a CDN instead of shipping with the build.
@@ -120,15 +123,33 @@ const { ScramjetServiceWorker } = $scramjetLoadWorker();
 const scramjet = new ScramjetServiceWorker();
 
 async function handleRequest(event) {
-  await scramjet.loadConfig();
-  if (uv.route(event)) {
-    return await uv.fetch(event);
-  }
-  if (scramjet.route(event)) {
-    return await scramjet.fetch(event);
+  /*
+   * A freshly installed worker has no scramjet config yet -- the app writes it
+   * when the proxy is first set up. Until then loadConfig() rejects, and an
+   * unhandled rejection here fails the request outright. Since this worker
+   * controls the whole scope, that makes the entire site unloadable the moment
+   * it is installed: first visit works, every reload is a blank page.
+   *
+   * Anything that goes wrong below degrades to a plain network request.
+   */
+  try {
+    await scramjet.loadConfig();
+  } catch (err) {
+    return fetch(event.request);
   }
 
-  return await fetch(event.request);
+  try {
+    if (uv.route(event)) {
+      return await uv.fetch(event);
+    }
+    if (scramjet.route(event)) {
+      return await scramjet.fetch(event);
+    }
+  } catch (err) {
+    return fetch(event.request);
+  }
+
+  return fetch(event.request);
 }
 
 self.addEventListener("fetch", (event) => {
@@ -141,5 +162,6 @@ self.addEventListener("fetch", (event) => {
     event.respondWith($scramjetController.route(event));
     return;
   }
-  event.respondWith(handleRequest(event));
+  // Last line of defence: never let a worker error blank the page.
+  event.respondWith(handleRequest(event).catch(() => fetch(event.request)));
 });
