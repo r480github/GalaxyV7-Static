@@ -33,7 +33,8 @@ const ENGINE_SOURCES = [
 if (CDN) {
   importScripts(...ENGINE_SOURCES.map((p) => CDN + p));
 } else {
-  importScripts(...ENGINE_SOURCES.map((p) => "/" + p));
+  // Relative to this worker's own URL, so it works off-root too.
+  importScripts(...ENGINE_SOURCES.map((p) => new URL(p, self.location.href).href));
 }
 
 /*
@@ -75,11 +76,21 @@ function contentTypeFor(path) {
   return "application/javascript; charset=utf-8";
 }
 
+/*
+ * The worker's scope is the app root, which is NOT the origin root when the
+ * build is served from a subdirectory (a CDN path, a project Pages site).
+ * Asset requests arrive prefixed with it, so matching has to be scope-relative
+ * or every lookup misses off-root.
+ */
+const SCOPE_PATH = new URL(self.registration.scope).pathname.replace(/\/$/, "");
+
 function assetTarget(request) {
   if (!CDN) return null;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return null;
-  const mapped = ASSET_MAP[url.pathname];
+  if (SCOPE_PATH && !url.pathname.startsWith(SCOPE_PATH + "/")) return null;
+  const rel = SCOPE_PATH ? url.pathname.slice(SCOPE_PATH.length) : url.pathname;
+  const mapped = ASSET_MAP[rel];
   return mapped ? CDN + mapped : null;
 }
 
