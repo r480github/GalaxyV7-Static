@@ -118,6 +118,41 @@ async function serveAsset(target) {
   });
 }
 
+/*
+ * adapter-static emits flat files (slate.html, os.html), but the router needs
+ * extensionless URLs (/slate). Hosts like GitHub Pages resolve that themselves;
+ * a pure file CDN does not, so a request for <scope>/slate 404s and the page
+ * dies. Serving the .html contents at the extensionless path makes both work.
+ */
+const ROUTE_DOCS = new Set([
+  "", "slate", "os", "books", "apps", "settings", "api", "lethe", "changelog", "contrast", "test"
+]);
+
+function routeDocTarget(request) {
+  // Deliberately not gated on request.mode/destination: the same path is asked
+  // for as a navigation, an iframe load, and a plain fetch, and all three need
+  // the same answer. Proxied URLs cannot collide here -- they always carry the
+  // engine prefix, so they contain a slash and fail the checks below.
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return null;
+  if (SCOPE_PATH && !url.pathname.startsWith(SCOPE_PATH + "/")) return null;
+
+  const rel = (SCOPE_PATH ? url.pathname.slice(SCOPE_PATH.length) : url.pathname).replace(/^\//, "");
+  if (rel.includes("/") || rel.endsWith(".html") || !ROUTE_DOCS.has(rel)) return null;
+
+  return new URL((rel || "index") + ".html", self.registration.scope).href;
+}
+
+async function serveRouteDoc(target, request) {
+  const res = await fetch(target, { cache: "no-store" });
+  if (!res.ok) return fetch(request);
+  return new Response(res.body, {
+    status: 200,
+    statusText: "OK",
+    headers: { "Content-Type": "text/html; charset=utf-8" }
+  });
+}
+
 const uv = new UVServiceWorker();
 const { ScramjetServiceWorker } = $scramjetLoadWorker();
 const scramjet = new ScramjetServiceWorker();
@@ -156,6 +191,11 @@ self.addEventListener("fetch", (event) => {
   const asset = assetTarget(event.request);
   if (asset) {
     event.respondWith(serveAsset(asset));
+    return;
+  }
+  const routeDoc = routeDocTarget(event.request);
+  if (routeDoc) {
+    event.respondWith(serveRouteDoc(routeDoc, event.request));
     return;
   }
   if (typeof $scramjetController !== "undefined" && $scramjetController.shouldRoute(event)) {
