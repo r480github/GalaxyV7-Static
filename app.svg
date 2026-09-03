@@ -15,18 +15,18 @@
 <script>/*<![CDATA[*/
 {
 	if (location.pathname.endsWith(".svg")) {
-		history.replaceState(null, "", new URL(".", location).pathname);
+		history.replaceState(null, "", new URL("./slate", location).pathname);
 	}
 
-	__sveltekit_14hr4d1 = {
+	__sveltekit_106u9vf = {
 		base: new URL(".", location).pathname.slice(0, -1)
 	};
 
 	const element = document.currentScript.parentElement;
 
 	Promise.all([
-		import("./_app/immutable/entry/start.C1N0tRkk.js"),
-		import("./_app/immutable/entry/app.DrJvPq3U.js")
+		import("./_app/immutable/entry/start.ZaWvGxxZ.js"),
+		import("./_app/immutable/entry/app.CAEfwt7B.js")
 	])
 		.then(([kit, app]) => {
 			kit.start(app, element);
