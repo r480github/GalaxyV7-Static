@@ -14,19 +14,15 @@
 <div style="display: contents">
 <script>/*<![CDATA[*/
 {
-	if (location.pathname.endsWith(".svg")) {
-		history.replaceState(null, "", new URL("./slate", location).pathname);
-	}
-
-	__sveltekit_1b5bgkz = {
+	__sveltekit_9g0gtz = {
 		base: new URL(".", location).pathname.slice(0, -1)
 	};
 
 	const element = document.currentScript.parentElement;
 
 	Promise.all([
-		import("./_app/immutable/entry/start.IFVtOAdf.js"),
-		import("./_app/immutable/entry/app.BRkYRxZP.js")
+		import("./_app/immutable/entry/start.Br02ZoSI.js"),
+		import("./_app/immutable/entry/app.DrCQRi3f.js")
 	])
 		.then(([kit, app]) => {
 			kit.start(app, element);

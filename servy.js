@@ -1,30 +1,8 @@
-// Resolved against this worker's own URL. An absolute "/cdn.js" would hit the
-// ORIGIN root, which is wrong on any host that serves the app from a
-// subdirectory -- on a CDN it becomes https://cdn.jsdelivr.net/cdn.js.
-importScripts(new URL("cdn.js", self.location.href).href);
-
 /*
- * Engine assets can come from a CDN instead of shipping with the build.
- *
- * Two separate mechanisms are at work here, and they solve different problems:
- *
- *   1. importScripts() works cross-origin, so the worker-side engine code can
- *      be pulled straight from the CDN. Nothing below has to exist on this
- *      origin for the worker itself to boot.
- *
- *   2. Assets that get injected into PROXIED pages -- the UV handler/client/
- *      bundle, prism's inject script, scramjet's wasm -- are requested from
- *      this origin by documents we control. There does not have to be a file
- *      behind those URLs: the fetch handler below synthesizes them from the
- *      CDN and stamps the correct Content-Type on the way out. That also means
- *      a host serving text/plain cannot break them.
- *
- * Page-side scripts are NOT covered by this. A document is uncontrolled on its
- * first load, so its own <script src> fetches bypass the worker entirely --
- * those go to the CDN directly via src/lib/lethe/cdn.js.
+ * Resolved against this worker's own URL. An absolute "/glass/..." would hit
+ * the ORIGIN root, which is wrong wherever the app is served from a
+ * subdirectory -- on a CDN it becomes https://cdn.jsdelivr.net/glass/...
  */
-const CDN = self.__GALAXY_CDN || "";
-
 const ENGINE_SOURCES = [
   "glass/glass.bundle.js",
   "glass/glass.config.js",
@@ -32,97 +10,20 @@ const ENGINE_SOURCES = [
   "poly/polygon.all.js",
   "prism/prism.sw.js",
 ];
-
-if (CDN) {
-  importScripts(...ENGINE_SOURCES.map((p) => CDN + p));
-} else {
-  // Relative to this worker's own URL, so it works off-root too.
-  importScripts(...ENGINE_SOURCES.map((p) => new URL(p, self.location.href).href));
-}
+importScripts(...ENGINE_SOURCES.map((p) => new URL(p, self.location.href).href));
 
 /*
- * Same-origin path -> CDN path. Exact pathname matches only; a suffix match
- * would also catch proxied URLs that happen to end the same way.
- *
- * Directory names mirror static/ exactly, so whatever gets pushed to the assets
- * repo can be a straight copy of these folders.
- */
-const ASSET_MAP = {
-  "/glass/glass.handler.js": "glass/glass.handler.js",
-  "/glass/glass.client.js": "glass/glass.client.js",
-  "/glass/glass.bundle.js": "glass/glass.bundle.js",
-  "/glass/glass.config.js": "glass/glass.config.js",
-  "/glass/glass.sw.js": "glass/glass.sw.js",
-
-  "/poly/polygon.all.js": "poly/polygon.all.js",
-  "/poly/polygon.sync.js": "poly/polygon.sync.js",
-  "/poly/polygon.wasm.wasm": "poly/polygon.wasm.wasm",
-
-  "/prism/prism.js": "prism/prism.js",
-  "/prism/prism.api.js": "prism/prism.api.js",
-  "/prism/prism.inject.js": "prism/prism.inject.js",
-  "/prism/prism.sw.js": "prism/prism.sw.js",
-  "/prism/prism.wasm": "prism/prism.wasm",
-  "/prism/libby.js": "prism/libby.js",
-  "/prism/libbyworse.js": "prism/libbyworse.js",
-
-  "/charon/worker.js": "charon/worker.js",
-  "/charon/index.js": "charon/index.js",
-
-  "/reflux/index.mjs": "reflux/index.mjs",
-  "/libby/index.mjs": "libby/index.mjs",
-  "/libbybutslightlyworse/index.mjs": "libbybutslightlyworse/index.mjs",
-};
-
-function contentTypeFor(path) {
-  if (path.endsWith(".wasm")) return "application/wasm";
-  return "application/javascript; charset=utf-8";
-}
-
-/*
- * The worker's scope is the app root, which is NOT the origin root when the
- * build is served from a subdirectory (a CDN path, a project Pages site).
- * Asset requests arrive prefixed with it, so matching has to be scope-relative
- * or every lookup misses off-root.
+ * The worker's scope is the app root, which is not the origin root off-root, so
+ * any path matching below has to be scope-relative.
  */
 const SCOPE_PATH = new URL(self.registration.scope).pathname.replace(/\/$/, "");
-
-function assetTarget(request) {
-  if (!CDN) return null;
-  const url = new URL(request.url);
-  if (url.origin !== self.location.origin) return null;
-  if (SCOPE_PATH && !url.pathname.startsWith(SCOPE_PATH + "/")) return null;
-  const rel = SCOPE_PATH ? url.pathname.slice(SCOPE_PATH.length) : url.pathname;
-  const mapped = ASSET_MAP[rel];
-  return mapped ? CDN + mapped : null;
-}
-
-async function serveAsset(target) {
-  const upstream = await fetch(target, { cache: "force-cache" });
-  if (!upstream.ok) {
-    return new Response("asset fetch failed: " + upstream.status, {
-      status: 502,
-      headers: { "Content-Type": "text/plain" },
-    });
-  }
-  return new Response(upstream.body, {
-    status: 200,
-    statusText: "OK",
-    headers: {
-      "Content-Type": contentTypeFor(target),
-      "Access-Control-Allow-Origin": "*",
-      // Pinned CDN URLs are immutable, so this is safe and keeps the engine
-      // out of the network path on every subsequent load.
-      "Cache-Control": "public, max-age=31536000, immutable",
-    },
-  });
-}
 
 /*
  * adapter-static emits flat files (slate.html, os.html), but the router needs
  * extensionless URLs (/slate). Hosts like GitHub Pages resolve that themselves;
- * a pure file CDN does not, so a request for <scope>/slate 404s and the page
- * dies. Serving the .html contents at the extensionless path makes both work.
+ * a pure file CDN does not, so a request for <scope>/os would 404 and the page
+ * would die. Serving the .html contents at the extensionless path makes both
+ * behave the same.
  */
 const ROUTE_DOCS = new Set([
   "", "slate", "os", "books", "apps", "settings", "api", "lethe", "changelog", "contrast", "test"
@@ -131,7 +32,7 @@ const ROUTE_DOCS = new Set([
 function routeDocTarget(request) {
   // Deliberately not gated on request.mode/destination: the same path is asked
   // for as a navigation, an iframe load, and a plain fetch, and all three need
-  // the same answer. Proxied URLs cannot collide here -- they always carry the
+  // the same answer. Proxied URLs cannot collide -- they always carry the
   // engine prefix, so they contain a slash and fail the checks below.
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return null;
@@ -149,7 +50,7 @@ async function serveRouteDoc(target, request) {
   return new Response(res.body, {
     status: 200,
     statusText: "OK",
-    headers: { "Content-Type": "text/html; charset=utf-8" }
+    headers: { "Content-Type": "text/html; charset=utf-8" },
   });
 }
 
@@ -162,8 +63,8 @@ async function handleRequest(event) {
    * A freshly installed worker has no scramjet config yet -- the app writes it
    * when the proxy is first set up. Until then loadConfig() rejects, and an
    * unhandled rejection here fails the request outright. Since this worker
-   * controls the whole scope, that makes the entire site unloadable the moment
-   * it is installed: first visit works, every reload is a blank page.
+   * controls the whole scope, that made the entire site unloadable once
+   * installed: first visit fine, every reload a blank page.
    *
    * Anything that goes wrong below degrades to a plain network request.
    */
@@ -188,11 +89,6 @@ async function handleRequest(event) {
 }
 
 self.addEventListener("fetch", (event) => {
-  const asset = assetTarget(event.request);
-  if (asset) {
-    event.respondWith(serveAsset(asset));
-    return;
-  }
   const routeDoc = routeDocTarget(event.request);
   if (routeDoc) {
     event.respondWith(serveRouteDoc(routeDoc, event.request));
