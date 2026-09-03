@@ -14,15 +14,15 @@
 <div style="display: contents">
 <script>/*<![CDATA[*/
 {
-	__sveltekit_9g0gtz = {
+	__sveltekit_chxsv3 = {
 		base: new URL(".", location).pathname.slice(0, -1)
 	};
 
 	const element = document.currentScript.parentElement;
 
 	Promise.all([
-		import("./_app/immutable/entry/start.Br02ZoSI.js"),
-		import("./_app/immutable/entry/app.DrCQRi3f.js")
+		import("./_app/immutable/entry/start.Bi67-APz.js"),
+		import("./_app/immutable/entry/app.CCqHyDdV.js")
 	])
 		.then(([kit, app]) => {
 			kit.start(app, element);
@@ -37,15 +37,33 @@
 </html>
 </foreignObject>
 <script>/*<![CDATA[*/
-/* Percentage width/height on foreignObject is not reliably honored, so the box
-   gets stamped with real pixels. querySelector is used rather than
-   getElementById because the shim scopes lookups into the subtree first. */
-var fo = document.querySelector("foreignObject");
-function sizeToViewport() {
-	fo.setAttribute("width", window.innerWidth);
-	fo.setAttribute("height", window.innerHeight);
-}
-sizeToViewport();
-window.addEventListener("resize", sizeToViewport);
+/*
+ * width/height="100%" on the foreignObject tracks the viewport on its own, so
+ * there is normally nothing to do here. Some engines have historically ignored
+ * percentage sizing on foreignObject, so this checks once after load and only
+ * falls back to stamping pixels if the box did not actually fill. Stamping
+ * unconditionally is what broke this before: it froze the box at whatever the
+ * window happened to be at load, and the content was clipped after any resize.
+ */
+(function () {
+	var fo = document.querySelector("foreignObject");
+	if (!fo) return;
+
+	function fills() {
+		var r = fo.getBoundingClientRect();
+		return Math.abs(r.width - window.innerWidth) < 2 && Math.abs(r.height - window.innerHeight) < 2;
+	}
+
+	function stamp() {
+		fo.setAttribute("width", window.innerWidth);
+		fo.setAttribute("height", window.innerHeight);
+	}
+
+	window.addEventListener("load", function () {
+		if (fills()) return;
+		stamp();
+		window.addEventListener("resize", stamp);
+	});
+})();
 /*]]>*/</script>
 </svg>

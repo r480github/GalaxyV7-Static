@@ -1,1 +1,0 @@
-import{d as t}from"./D1a18gWp.js";function a(e){return`${t}/${String(e).replace(/^\//,"")}`}function l(e){const[n,r]=String(e).split("?"),c=n.replace(/^\//,"").replace(/\/$/,"");return`${t}/${c||"index"}.html${r?"?"+r:""}`}export{a as l,l as r};
