@@ -40,9 +40,8 @@ if (CDN) {
  * Same-origin path -> CDN path. Exact pathname matches only; a suffix match
  * would also catch proxied URLs that happen to end the same way.
  *
- * The last two entries are a fix as well as a remap: car.js asks for
- * /libby/ and /libbybutslightlyworse/, but copystatic.js writes libcurl/ and
- * epoxy/, so those transports 404 in the current static build.
+ * Directory names mirror static/ exactly, so whatever gets pushed to the assets
+ * repo can be a straight copy of these folders.
  */
 const ASSET_MAP = {
   "/glass/glass.handler.js": "glass/glass.handler.js",
@@ -67,8 +66,8 @@ const ASSET_MAP = {
   "/charon/index.js": "charon/index.js",
 
   "/reflux/index.mjs": "reflux/index.mjs",
-  "/libby/index.mjs": "libcurl/index.mjs",
-  "/libbybutslightlyworse/index.mjs": "epoxy/index.mjs",
+  "/libby/index.mjs": "libby/index.mjs",
+  "/libbybutslightlyworse/index.mjs": "libbybutslightlyworse/index.mjs",
 };
 
 function contentTypeFor(path) {
